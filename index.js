@@ -1,3 +1,4 @@
+
 const express = require('express');
 const bodyParser = require('body-parser');
 const axios = require('axios');
@@ -11,44 +12,61 @@ const PRODUCTS = [
 ];
 let orders = {};
 
-app.get('/', (req,res) => res.send('BikriKori Bot is Live!'));
+const VERIFY_TOKEN = process.env.VERIFY_TOKEN || "bikrikori123";
+const PAGE_ACCESS_TOKEN = process.env.PAGE_ACCESS_TOKEN;
+const PORT = process.env.PORT || 10000;
+
+app.get('/', (req,res) => res.send('BikriKori Bot is Running'));
+
 app.get('/webhook', (req,res) => {
-  if(req.query['hub.verify_token'] === process.env.VERIFY_TOKEN){
-    res.send(req.query['hub.challenge']);
-  } else res.sendStatus(403);
+  let mode = req.query['hub.mode'];
+  let token = req.query['hub.verify_token'];
+  let challenge = req.query['hub.challenge'];
+
+  if (mode === 'subscribe' && token === VERIFY_TOKEN) {
+    console.log('WEBHOOK_VERIFIED');
+    res.status(200).send(challenge);
+  } else {
+    res.sendStatus(403);
+  }
 });
+
 app.post('/webhook', async (req,res) => {
   const messaging = req.body.entry?.[0]?.messaging?.[0];
   if(!messaging) return res.sendStatus(200);
+
   const senderId = messaging.sender.id;
   const text = messaging.message?.text?.toLowerCase() || "";
   let reply = "";
-  if(text.includes("hi") || text.includes("হাই")){
-    reply = `স্বাগতম! 😊\n\n1. টর্চ লাইট - 500 টাকা\n2. পাওয়ার ব্যাংক - 600 টাকা\n3. হেডফোন - 700 টাকা\n\nনাম লিখুন`;
+
+  if(text.includes("hi") || text.includes("hello") || text.includes("হাই")){
+    reply = `আসসালামু আলাইকুম! Bikri Kori তে স্বাগতম 🛒\n\nআমাদের প্রোডাক্ট:\n1. টর্চ লাইট - 500 টাকা\n2. পাওয়ার ব্যাংক - 600 টাকা\n3. হেডফোন - 700 টাকা\n\nঅর্ডার করতে প্রোডাক্টের নাম লিখুন`;
   } else if(text.includes("টর্চ") || text.includes("1")){
-    orders[senderId] = { product: "টর্চ লাইট", price: 500 };
-    reply = "টর্চ লাইট 500 টাকা। আপনার নাম, ঠিকানা ও মোবাইল দিন";
+    reply = `🔦 টর্চ লাইট - 500 টাকা\nঅর্ডার করতে লিখুন: অর্ডার 1 এবং আপনার ঠিকানা`;
   } else if(text.includes("পাওয়ার") || text.includes("2")){
-    orders[senderId] = { product: "পাওয়ার ব্যাংক", price: 600 };
-    reply = "পাওয়ার ব্যাংক 600 টাকা। আপনার নাম, ঠিকানা ও মোবাইল দিন";
+    reply = `🔋 পাওয়ার ব্যাংক - 600 টাকা\nঅর্ডার করতে লিখুন: অর্ডার 2 এবং আপনার ঠিকানা`;
   } else if(text.includes("হেডফোন") || text.includes("3")){
-    orders[senderId] = { product: "হেডফোন", price: 700 };
-    reply = "হেডফোন 700 টাকা। আপনার নাম, ঠিকানা ও মোবাইল দিন";
-  } else if(text.length > 10){
-    const lastOrder = orders[senderId];
-    if(lastOrder){
-      console.log("NEW ORDER:", senderId, lastOrder, text);
-      reply = `ধন্যবাদ! অর্ডার পেয়েছি ✅\nপ্রোডাক্ট: ${lastOrder.product}\nতথ্য: ${text}\nশীঘ্রই কল করবো।`;
-    } else {
-      reply = "প্রোডাক্টের নাম লিখুন: টর্চ লাইট / পাওয়ার ব্যাংক / হেডফোন";
-    }
+    reply = `🎧 হেডফোন - 700 টাকা\nঅর্ডার করতে লিখুন: অর্ডার 3 এবং আপনার ঠিকানা`;
+  } else if(text.includes("অর্ডার")){
+    reply = `ধন্যবাদ! আপনার অর্ডারটি নেওয়া হয়েছে ✅\nআমাদের টিম 2 ঘন্টার মধ্যে কল করবে।`;
   } else {
-    reply = "Hi লিখুন";
+    reply = `বুঝতে পারিনি। দয়া করে 1, 2, 3 লিখে প্রোডাক্ট দেখুন।`;
   }
-  await axios.post(`https://graph.facebook.com/v19.0/me/messages?access_token=${process.env.PAGE_ACCESS_TOKEN}`, {
-    recipient: { id: senderId },
-    message: { text: reply }
-  });
-  res.sendStatus(200);
+
+  try{
+    if(PAGE_ACCESS_TOKEN){
+      await axios.post(`https://graph.facebook.com/v18.0/me/messages?access_token=${PAGE_ACCESS_TOKEN}`, {
+        recipient: { id: senderId },
+        message: { text: reply }
+      });
+    }
+  } catch(e){
+    console.log("Send Error", e.response?.data);
+  }
+
+  res.status(200).send('EVENT_RECEIVED');
 });
-app.listen(process.env.PORT || 10000, () => console.log("Running"));
+
+app.listen(PORT, () => {
+  console.log(`Running on ${PORT}`);
+});
